@@ -42,17 +42,17 @@ files = [
 
 [[package]]
 name = "exif"
-version = "1.3.1"
+version = "1.6.0"
 description = "Read and modify image EXIF metadata using Python."
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "exif-1.3.1-py3-none-any.whl", hash = "sha256:d1e08f7ee0fe30759e72bdbf2bb9a32d24e9879ddfe8cf9513c003fb9bf9eb58"},
-    {file = "exif-1.3.1.tar.gz", hash = "sha256:48734e5a503b055418e67e358accb8572586e2648d69f362b59339cf9fef0aac"},
+    {file = "exif-1.6.0-py3-none-any.whl", hash = "sha256:2d002b5740eb897da43de1e6a8f4ebacf5171b4d0b8bc0182c70aebde1be86d3"},
+    {file = "exif-1.6.0.tar.gz", hash = "sha256:36288d1ffc60030084a04c26f50cc32e19383a36cd234fcfa1fb1c6f698e1d36"},
 ]
 
 [package.dependencies]
-plum-py = ">=0.5.0"
+plum-py = ">=0.5.0,<2.0.0"
 
 [[package]]
 name = "more-itertools"
@@ -150,4 +150,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.12"
-content-hash = "684cafa5c6c13afcdbf689c2b075b498e35d553131172e0a08791b44b2c9f7a1"
+content-hash = "e23427442c940e40bcdf46eb35d2daee09b70bcbdb339b8cf35b4cc4f8369715"
