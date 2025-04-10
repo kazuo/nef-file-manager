@@ -1,4 +1,4 @@
-from raw_file_manager import __version__
+from nef_file_manager import __version__
 
 
 def test_version():
