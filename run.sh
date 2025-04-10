@@ -1,2 +1,4 @@
 #!/bin/sh
-poetry run python ./nef_file_manager
+BASEDIR=$(dirname $0)
+source "${BASEDIR}/.venv/bin/activate"
+python "${BASEDIR}/nef_file_manager"
