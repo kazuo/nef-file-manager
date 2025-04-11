@@ -9,29 +9,31 @@ from pathlib import Path
 import glob
 import re
 
+RE_JPG: str = r"(.*)\.(jpg|hif)"
 RE_NEF: str = r"(.*)\.(nef)"
-
 
 def main(from_folder: str, to_folder: str):
     print(f"Checking RAW files in {from_folder}")
     from_folder_glob = f"{Path(from_folder)}/**"
-    for file in glob.iglob(from_folder_glob, recursive=True):
-        fp = Path(file)
-        matched_file = re.match(RE_NEF, fp.name, re.IGNORECASE)
-        if matched_file is None:
-            continue
+    # move NEF folders first, then orphaned jpg/hif files
+    for regex in [RE_NEF, RE_JPG]:
+        for file in glob.iglob(from_folder_glob, recursive=True):
+            fp = Path(file)
+            matched_file = re.match(regex, fp.name, re.IGNORECASE)
+            if matched_file is None:
+                continue
 
-        result = subprocess.run(['exiftool', file], capture_output=True, text=True)
-        if result.returncode != 0:
-            print(f'Could not open {file}')
-            continue
+            result = subprocess.run(['exiftool', file], capture_output=True, text=True)
+            if result.returncode != 0:
+                print(f'Could not open {file}')
+                continue
 
-        try:
-            exif_data = parse_exif(result.stdout)
-            to_image_folder = create_folder(exif_data, to_folder)
-            move_image(fp, to_image_folder)
-        except Exception as e:
-            print('Caught an error', e)
+            try:
+                exif_data = parse_exif(result.stdout)
+                to_image_folder = create_folder(exif_data, to_folder)
+                move_image(fp, to_image_folder)
+            except Exception as e:
+                print('Caught an error', e)
 
 
 def parse_exif(raw_stdout: str) -> dict:
