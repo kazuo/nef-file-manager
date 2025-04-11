@@ -10,7 +10,7 @@ import glob
 import re
 
 RE_JPG: str = r"(.*)\.(jpg|hif)"
-RE_NEF: str = r"(.*)\.(nef)"
+RE_NEF: str = r"(.*)\.(nef|mov)"
 
 def main(from_folder: str, to_folder: str):
     print(f"Checking RAW files in {from_folder}")
@@ -34,7 +34,6 @@ def main(from_folder: str, to_folder: str):
                 move_image(fp, to_image_folder)
             except Exception as e:
                 print('Caught an error', e)
-
 
 def parse_exif(raw_stdout: str) -> dict:
     rows: list = raw_stdout.splitlines()
@@ -75,7 +74,7 @@ def create_folder(image_exif: dict, base_folder: str) -> Optional[str]:
 
 
 def move_image(image_file: Path, to_image_folder: str):
-    re_nef = fr"({image_file.stem})\.(nef|jpg|hif)"
+    re_nef = fr"({image_file.stem})\.(nef|jpg|hif|mov)"
     for nef_file in glob.iglob(f"{image_file.parent}/**", recursive=True):
         nef_fp = Path(nef_file)
         matched_file = re.match(re_nef, nef_fp.name, re.IGNORECASE)
