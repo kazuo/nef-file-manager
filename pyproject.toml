@@ -1,7 +1,7 @@
 [project]
 name = "nef-file-manager"
 version = "0.1.0"
-description = "Add your description here"
+description = "Move Nikon RAW files (NEF) imported from NX Studio to an organized format YYYY/YYYY-MM-DD"
 readme = "README.md"
 requires-python = ">=3.13"
 
@@ -9,3 +9,4 @@ requires-python = ">=3.13"
 dev = [
     "pytest>=8.3.5",
 ]
+
