@@ -82,8 +82,17 @@ def move_image(image_file: Path, to_image_folder: str):
         if matched_file is None:
             continue
 
-        print(f"{nef_fp} -> {to_image_folder}/{nef_fp.name}")
-        shutil.move(nef_fp, f"{to_image_folder}/{nef_fp.name}", shutil.copy2)
+        dest_path = Path(f"{to_image_folder}/{nef_fp.name}")
+        if dest_path.exists():
+            # Remove immutable flag if present
+            os.chflags(dest_path, 0)
+            dest_path.unlink()
+
+        # Remove immutable flag from source file if present
+        os.chflags(nef_fp, 0)
+
+        print(f"{nef_fp} -> {dest_path}")
+        shutil.move(nef_fp, dest_path)
 
 
 def get_image_datetime(image_exif: dict) -> Optional[datetime]:

@@ -137,9 +137,10 @@ def test_create_folder_year_exists_date_new(mock_path_class, mock_os_mkdir, mock
     mock_os_mkdir.assert_called_with("/test/base/2023/2023-07-15")
 
 
+@patch('os.chflags')
 @patch('shutil.move')
 @patch('glob.iglob')
-def test_move_image_single_file(mock_glob_iglob, mock_shutil_move):
+def test_move_image_single_file(mock_glob_iglob, mock_shutil_move, mock_chflags):
     # Create mock image file
     mock_image_file = MagicMock(spec=Path)
     mock_image_file.stem = "test_image"
@@ -158,12 +159,13 @@ def test_move_image_single_file(mock_glob_iglob, mock_shutil_move):
     # Check the call arguments
     call_args = mock_shutil_move.call_args
     assert str(call_args[0][0]) == related_file_path_str
-    assert call_args[0][1] == f"{to_folder}/test_image.nef"
+    assert str(call_args[0][1]) == f"{to_folder}/test_image.nef"
 
 
+@patch('os.chflags')
 @patch('shutil.move')
 @patch('glob.iglob')
-def test_move_image_multiple_related_files(mock_glob_iglob, mock_shutil_move):
+def test_move_image_multiple_related_files(mock_glob_iglob, mock_shutil_move, mock_chflags):
     mock_image_file = MagicMock(spec=Path)
     mock_image_file.stem = "test_image"
     mock_image_file.parent = Path("/fake/source")
