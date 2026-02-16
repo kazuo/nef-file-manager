@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from datetime import datetime
 from pathlib import Path
 
-from nef_file_manager.core import parse_exif, get_image_datetime, create_folder, move_image
+from nef_file_manager.core import parse_exif, get_image_datetime, create_folder, move_image, organize_raw_files
 
 
 def test_parse_exif_simple():
@@ -201,6 +201,47 @@ def test_move_image_no_matching_files(mock_glob_iglob, mock_shutil_move):
 
     # Should not move anything
     mock_shutil_move.assert_not_called()
+
+
+@patch('os.chflags')
+@patch('shutil.move')
+@patch('glob.iglob')
+def test_move_image_ignores_rejected_folder(mock_glob_iglob, mock_shutil_move, mock_chflags):
+    mock_image_file = MagicMock(spec=Path)
+    mock_image_file.stem = "test_image"
+    mock_image_file.parent = Path("/fake/source")
+
+    # Simulate finding files, including one in _Rejected
+    related_files = [
+        "/fake/source/test_image.nef",
+        "/fake/source/_Rejected/test_image.jpg"
+    ]
+    mock_glob_iglob.return_value = related_files
+
+    to_folder = "/fake/destination/2023-01-01"
+    move_image(mock_image_file, to_folder)
+
+    # Should only move the non-rejected file
+    assert mock_shutil_move.call_count == 1
+    call_args = mock_shutil_move.call_args
+    assert str(call_args[0][0]) == "/fake/source/test_image.nef"
+
+
+@patch('nef_file_manager.core.subprocess.run')
+@patch('nef_file_manager.core.glob.iglob')
+def test_organize_raw_files_ignores_rejected_folder(mock_glob_iglob, mock_subprocess_run):
+    # Setup
+    from_folder = "/fake/source"
+    to_folder = "/fake/target"
+    
+    # Mock glob to return a file in _Rejected folder
+    mock_glob_iglob.return_value = ["/fake/source/_Rejected/test_image.nef"]
+    
+    # Run function
+    organize_raw_files(from_folder, to_folder)
+    
+    # Verify subprocess.run (exiftool) was NOT called because the file should be skipped
+    mock_subprocess_run.assert_not_called()
 
 
 # Parametrized tests for different date formats (bonus pytest feature)

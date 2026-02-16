@@ -18,6 +18,10 @@ def organize_raw_files(from_folder: str, to_folder: str):
     for regex in [RE_NEF, RE_JPG]:
         for file in glob.iglob(from_folder_glob, recursive=True):
             fp = Path(file)
+
+            if "_Rejected" in fp.parts:
+                continue
+
             matched_file = re.match(regex, fp.name, re.IGNORECASE)
             if matched_file is None:
                 continue
@@ -78,6 +82,10 @@ def move_image(image_file: Path, to_image_folder: str):
     re_nef = fr"({image_file.stem})\.(nef|jpg|hif|mov)"
     for nef_file in glob.iglob(f"{image_file.parent}/**", recursive=True):
         nef_fp = Path(nef_file)
+
+        if "_Rejected" in nef_fp.parts:
+            continue
+
         matched_file = re.match(re_nef, nef_fp.name, re.IGNORECASE)
         if matched_file is None:
             continue
