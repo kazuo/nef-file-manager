@@ -2,8 +2,17 @@ import pytest
 from unittest.mock import patch, MagicMock
 from datetime import datetime
 from pathlib import Path
+import os
 
-from nef_file_manager.core import parse_exif, get_image_datetime, create_folder, move_image, organize_raw_files
+from nef_file_manager.core import (
+    parse_exif, 
+    get_image_datetime, 
+    create_folder, 
+    transfer_image, 
+    organize_raw_files,
+    get_mount_point,
+    eject_volume
+)
 
 
 def test_parse_exif_simple():
@@ -140,7 +149,7 @@ def test_create_folder_year_exists_date_new(mock_path_class, mock_os_mkdir, mock
 @patch('os.chflags')
 @patch('shutil.move')
 @patch('glob.iglob')
-def test_move_image_single_file(mock_glob_iglob, mock_shutil_move, mock_chflags):
+def test_transfer_image_move_single_file(mock_glob_iglob, mock_shutil_move, mock_chflags):
     # Create mock image file
     mock_image_file = MagicMock(spec=Path)
     mock_image_file.stem = "test_image"
@@ -151,7 +160,7 @@ def test_move_image_single_file(mock_glob_iglob, mock_shutil_move, mock_chflags)
     mock_glob_iglob.return_value = [related_file_path_str]
 
     to_folder = "/fake/destination/2023-01-01"
-    move_image(mock_image_file, to_folder)
+    transfer_image(mock_image_file, to_folder, copy_only=False)
 
     mock_glob_iglob.assert_called_once_with(f"{mock_image_file.parent}/**", recursive=True)
     mock_shutil_move.assert_called_once()
@@ -163,9 +172,28 @@ def test_move_image_single_file(mock_glob_iglob, mock_shutil_move, mock_chflags)
 
 
 @patch('os.chflags')
+@patch('subprocess.run')
+@patch('glob.iglob')
+def test_transfer_image_copy_single_file_uses_rsync(mock_glob_iglob, mock_subprocess_run, mock_chflags):
+    mock_image_file = MagicMock(spec=Path)
+    mock_image_file.stem = "test_image"
+    mock_image_file.parent = Path("/fake/source")
+    mock_glob_iglob.return_value = ["/fake/source/test_image.nef"]
+
+    to_folder = "/fake/destination/2023-01-01"
+    transfer_image(mock_image_file, to_folder, copy_only=True)
+
+    # Check if rsync was called
+    rsync_called = any("rsync" in str(call) for call in mock_subprocess_run.call_args_list)
+    assert rsync_called
+    # Should not clear flags on source when copying
+    mock_chflags.assert_not_called()
+
+
+@patch('os.chflags')
 @patch('shutil.move')
 @patch('glob.iglob')
-def test_move_image_multiple_related_files(mock_glob_iglob, mock_shutil_move, mock_chflags):
+def test_transfer_image_multiple_related_files(mock_glob_iglob, mock_shutil_move, mock_chflags):
     mock_image_file = MagicMock(spec=Path)
     mock_image_file.stem = "test_image"
     mock_image_file.parent = Path("/fake/source")
@@ -180,7 +208,7 @@ def test_move_image_multiple_related_files(mock_glob_iglob, mock_shutil_move, mo
     mock_glob_iglob.return_value = related_files
 
     to_folder = "/fake/destination/2023-01-01"
-    move_image(mock_image_file, to_folder)
+    transfer_image(mock_image_file, to_folder)
 
     # Should be called 3 times (excluding unrelated file)
     assert mock_shutil_move.call_count == 3
@@ -188,7 +216,7 @@ def test_move_image_multiple_related_files(mock_glob_iglob, mock_shutil_move, mo
 
 @patch('shutil.move')
 @patch('glob.iglob')
-def test_move_image_no_matching_files(mock_glob_iglob, mock_shutil_move):
+def test_transfer_image_no_matching_files(mock_glob_iglob, mock_shutil_move):
     mock_image_file = MagicMock(spec=Path)
     mock_image_file.stem = "test_image"
     mock_image_file.parent = Path("/fake/source")
@@ -197,7 +225,7 @@ def test_move_image_no_matching_files(mock_glob_iglob, mock_shutil_move):
     mock_glob_iglob.return_value = ["/fake/source/different_file.nef"]
 
     to_folder = "/fake/destination/2023-01-01"
-    move_image(mock_image_file, to_folder)
+    transfer_image(mock_image_file, to_folder)
 
     # Should not move anything
     mock_shutil_move.assert_not_called()
@@ -206,7 +234,7 @@ def test_move_image_no_matching_files(mock_glob_iglob, mock_shutil_move):
 @patch('os.chflags')
 @patch('shutil.move')
 @patch('glob.iglob')
-def test_move_image_ignores_rejected_folder(mock_glob_iglob, mock_shutil_move, mock_chflags):
+def test_transfer_image_ignores_rejected_folder(mock_glob_iglob, mock_shutil_move, mock_chflags):
     mock_image_file = MagicMock(spec=Path)
     mock_image_file.stem = "test_image"
     mock_image_file.parent = Path("/fake/source")
@@ -219,7 +247,7 @@ def test_move_image_ignores_rejected_folder(mock_glob_iglob, mock_shutil_move, m
     mock_glob_iglob.return_value = related_files
 
     to_folder = "/fake/destination/2023-01-01"
-    move_image(mock_image_file, to_folder)
+    transfer_image(mock_image_file, to_folder)
 
     # Should only move the non-rejected file
     assert mock_shutil_move.call_count == 1
@@ -244,7 +272,7 @@ def test_organize_raw_files_ignores_rejected_folder(mock_glob_iglob, mock_subpro
     mock_subprocess_run.assert_not_called()
 
 
-# Parametrized tests for different date formats (bonus pytest feature)
+# Parametrized tests for different date formats
 @pytest.mark.parametrize("date_string,expected_dt", [
     ("2023:01:15 10:30:00", datetime(2023, 1, 15, 10, 30, 0)),
     ("2024:12:31 23:59:59", datetime(2024, 12, 31, 23, 59, 59)),
@@ -255,7 +283,45 @@ def test_get_image_datetime_parametrized(date_string, expected_dt):
     assert get_image_datetime(exif_data) == expected_dt
 
 
-# Test fixtures example (if you want to reuse test data)
+@patch('os.path.ismount')
+def test_get_mount_point(mock_ismount):
+    # Explicitly define return values for paths that get_mount_point will check
+    # when traversing up from '/Users/rmarin/Pictures' and '/Volumes/NIKON/DCIM/100'
+    mock_ismount.side_effect = lambda p: {
+        '/Volumes/NIKON/DCIM/100': False,
+        '/Volumes/NIKON/DCIM': False,
+        '/Volumes/NIKON': True,  # This is the mount point for the external volume
+        '/Users/rmarin/Pictures': False,
+        '/Users/rmarin': False,
+        '/Users': False,
+        '/': True  # This is the mount point for local paths
+    }.get(p, False) # Default to False for any other path not explicitly defined
+
+    assert get_mount_point('/Volumes/NIKON/DCIM/100') == '/Volumes/NIKON'
+    assert get_mount_point('/Users/rmarin/Pictures') == '/'
+
+
+@patch('nef_file_manager.core.get_mount_point')
+@patch('subprocess.run')
+def test_eject_volume_success(mock_run, mock_get_mount):
+    mock_get_mount.return_value = '/Volumes/NIKON'
+    mock_run.return_value = MagicMock(returncode=0)
+    
+    eject_volume('/Volumes/NIKON/DCIM')
+    
+    mock_run.assert_called_once_with(['diskutil', 'eject', '/Volumes/NIKON'], capture_output=True, text=True)
+
+
+@patch('nef_file_manager.core.get_mount_point')
+@patch('subprocess.run')
+def test_eject_volume_not_external(mock_run, mock_get_mount):
+    mock_get_mount.return_value = '/'
+    
+    eject_volume('/Users/rmarin/Pictures')
+    
+    mock_run.assert_not_called()
+
+
 @pytest.fixture
 def sample_exif_data():
     return {

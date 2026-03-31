@@ -11,10 +11,10 @@ RE_JPG: str = r"(.*)\.(jpg|hif)"
 RE_NEF: str = r"(.*)\.(nef|mov)"
 
 
-def organize_raw_files(from_folder: str, to_folder: str):
-    print(f"Checking RAW files in {from_folder}")
+def organize_raw_files(from_folder: str, to_folder: str, copy_only: bool = False):
+    print(f"Checking RAW files in {from_folder} (Copy only: {copy_only})")
     from_folder_glob = f"{Path(from_folder)}/**"
-    # move NEF folders first, then orphaned jpg/hif files
+    # move/copy NEF folders first, then orphaned jpg/hif files
     for regex in [RE_NEF, RE_JPG]:
         for file in glob.iglob(from_folder_glob, recursive=True):
             fp = Path(file)
@@ -34,7 +34,8 @@ def organize_raw_files(from_folder: str, to_folder: str):
             try:
                 exif_data = parse_exif(result.stdout)
                 to_image_folder = create_folder(exif_data, to_folder)
-                move_image(fp, to_image_folder)
+                if to_image_folder:
+                    transfer_image(fp, to_image_folder, copy_only)
             except Exception as e:
                 print('Caught an error', e)
 
@@ -78,7 +79,7 @@ def create_folder(image_exif: dict, base_folder: str) -> Optional[str]:
     return folder_date
 
 
-def move_image(image_file: Path, to_image_folder: str):
+def transfer_image(image_file: Path, to_image_folder: str, copy_only: bool = False):
     re_nef = fr"({image_file.stem})\.(nef|jpg|hif|mov)"
     for nef_file in glob.iglob(f"{image_file.parent}/**", recursive=True):
         nef_fp = Path(nef_file)
@@ -96,11 +97,18 @@ def move_image(image_file: Path, to_image_folder: str):
             os.chflags(dest_path, 0)
             dest_path.unlink()
 
-        # Remove immutable flag from source file if present
-        os.chflags(nef_fp, 0)
+        # If we are moving, we might need to clear flags on source
+        if not copy_only:
+            os.chflags(nef_fp, 0)
 
-        print(f"{nef_fp} -> {dest_path}")
-        shutil.move(nef_fp, dest_path)
+        action = "Copying" if copy_only else "Moving"
+        print(f"{action}: {nef_fp} -> {dest_path}")
+
+        if copy_only:
+            # Use rsync for copying as it's better for large files and robust
+            subprocess.run(['rsync', '-ah', str(nef_fp), str(dest_path)])
+        else:
+            shutil.move(nef_fp, dest_path)
 
 
 def get_image_datetime(image_exif: dict) -> Optional[datetime]:
@@ -108,3 +116,35 @@ def get_image_datetime(image_exif: dict) -> Optional[datetime]:
         if isinstance(image_exif["Create Date"], list) \
         else image_exif["Create Date"]
     return datetime.strptime(create_date, '%Y:%m:%d %H:%M:%S')
+
+
+def get_mount_point(path: str) -> Optional[str]:
+    """Find the mount point for a given path on macOS."""
+    p = Path(path).resolve()
+    while True:
+        if os.path.ismount(str(p)):
+            return str(p)
+        if p == p.parent:
+            break
+        p = p.parent
+    return None
+
+
+def eject_volume(path: str):
+    """Eject the volume containing the given path if it is an external volume."""
+    mount_point = get_mount_point(path)
+    if not mount_point:
+        print(f"Could not find mount point for {path}")
+        return
+
+    # Check if it's an external volume (usually under /Volumes on macOS)
+    if not mount_point.startswith("/Volumes/"):
+        print(f"Path {path} is not on an external volume (Mount point: {mount_point})")
+        return
+
+    print(f"Ejecting volume: {mount_point}")
+    result = subprocess.run(['diskutil', 'eject', mount_point], capture_output=True, text=True)
+    if result.returncode == 0:
+        print("Volume ejected successfully.")
+    else:
+        print(f"Failed to eject volume: {result.stderr.strip()}")
