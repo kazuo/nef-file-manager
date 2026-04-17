@@ -55,8 +55,8 @@ Examples:
     args = parser.parse_args()
     
     # Use flag values if provided, otherwise use positional arguments
-    source_input = (args.source_flag or args.source or "").strip()
-    target_input = (args.target_flag or args.target or "").strip()
+    source_input = (args.source_flag or args.source or "")
+    target_input = (args.target_flag or args.target or "")
     
     # Set defaults if no arguments provided
     if not source_input:
@@ -75,8 +75,17 @@ Examples:
     
     # Validate that source folder exists
     if not source_path.exists():
-        print(f"Error: Source folder '{source_path}' does not exist.")
-        sys.exit(1)
+        # Fallback: check if the folder exists with a trailing space (common for Nikon volumes)
+        if not source_input.endswith(" "):
+            alt_path = Path(source_input + " ").expanduser()
+            if alt_path.exists():
+                source_path = alt_path
+            else:
+                print(f"Error: Source folder {repr(str(source_path))} does not exist.")
+                sys.exit(1)
+        else:
+            print(f"Error: Source folder {repr(str(source_path))} does not exist.")
+            sys.exit(1)
     
     # Ensure target folder exists
     if not target_path.exists():

@@ -16,4 +16,4 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Use -m flag to run as module
-uv run python -m nef_file_manager "$@"
+uv run --frozen python -m nef_file_manager "$@"
